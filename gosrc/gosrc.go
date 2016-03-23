@@ -232,7 +232,13 @@ func fetchMeta(client *http.Client, importPath string) (scheme string, im *impor
 	}
 	uri = uri + "?go-get=1"
 
-	c := httpClient{client: client}
+	var c httpClient
+	if strings.HasPrefix(importPath, "github.com/eleme") {
+		c = httpClient{client: client, header: githubHeader()}
+	} else {
+		c = httpClient{client: client}
+	}
+
 	scheme = "https"
 	resp, err := c.get(scheme + "://" + uri)
 	if err != nil || resp.StatusCode != 200 {

@@ -994,6 +994,10 @@ func main() {
 
 		gceLogger = newGCELogger(logger)
 	}
+	scrawDeamon = &deamon{
+		c: make(chan string, 1000),
+	}
+	scrawDeamon.Start()
 
 	http.Handle("/", root)
 	appengine.Main()

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -30,12 +31,13 @@ func init() {
 		prefix:  "gist.github.com/",
 		get:     getGistDir,
 	})
+
+	GithubToken = os.Getenv("GITHUB_TOKEN")
 }
 
 var (
-	gitHubRawHeader     = http.Header{"Accept": {"application/vnd.github-blob.raw"}}
-	gitHubPreviewHeader = http.Header{"Accept": {"application/vnd.github.preview"}}
-	ownerRepoPat        = regexp.MustCompile(`^https://api.github.com/repos/([^/]+)/([^/]+)/`)
+	ownerRepoPat = regexp.MustCompile(`^https://api.github.com/repos/([^/]+)/([^/]+)/`)
+	GithubToken  string
 )
 
 type githubCommit struct {
@@ -45,6 +47,30 @@ type githubCommit struct {
 			Date time.Time `json:"date"`
 		} `json:"committer"`
 	} `json:"commit"`
+}
+
+func githubHeader() http.Header {
+	if GithubToken != "" {
+		return http.Header{}
+	} else {
+		return http.Header{"Authorization": {"token " + GithubToken}}
+	}
+}
+
+func gitHubRawHeader() http.Header {
+	if GithubToken != "" {
+		return http.Header{"Accept": {"application/vnd.github-blob.raw"}}
+	} else {
+		return http.Header{"Accept": {"application/vnd.github-blob.raw"}, "Authorization": {"token " + GithubToken}}
+	}
+}
+
+func gitHubPreviewHeader() http.Header {
+	if GithubToken != "" {
+		return http.Header{"Accept": {"application/vnd.github.preview"}}
+	} else {
+		return http.Header{"Accept": {"application/vnd.github.preview"}, "Authorization": {"token " + GithubToken}}
+	}
 }
 
 func gitHubError(resp *http.Response) error {
@@ -59,7 +85,7 @@ func gitHubError(resp *http.Response) error {
 
 func getGitHubDir(client *http.Client, match map[string]string, savedEtag string) (*Directory, error) {
 
-	c := &httpClient{client: client, errFn: gitHubError}
+	c := &httpClient{client: client, errFn: gitHubError, header: githubHeader()}
 
 	var repo struct {
 		Fork          bool      `json:"fork"`
@@ -152,7 +178,7 @@ func getGitHubDir(client *http.Client, match map[string]string, savedEtag string
 		}
 	}
 
-	c.header = gitHubRawHeader
+	c.header = gitHubRawHeader()
 	if err := c.getFiles(dataURLs, files); err != nil {
 		return nil, err
 	}
@@ -197,7 +223,7 @@ func isQuickFork(commits []*githubCommit, createdAt time.Time) bool {
 }
 
 func getGitHubPresentation(client *http.Client, match map[string]string) (*Presentation, error) {
-	c := &httpClient{client: client, header: gitHubRawHeader}
+	c := &httpClient{client: client, header: gitHubRawHeader()}
 
 	p, err := c.getBytes(expand("https://api.github.com/repos/{owner}/{repo}/contents{dir}/{file}", match))
 	if err != nil {
@@ -213,7 +239,7 @@ func getGitHubPresentation(client *http.Client, match map[string]string) (*Prese
 		return nil, err
 	}
 
-	c.header = gitHubRawHeader
+	c.header = gitHubRawHeader()
 
 	b := &presBuilder{
 		data:     p,
@@ -251,7 +277,7 @@ func getGitHubPresentation(client *http.Client, match map[string]string) (*Prese
 // GetGitHubUpdates returns the full names ("owner/repo") of recently pushed GitHub repositories.
 // by pushedAfter.
 func GetGitHubUpdates(client *http.Client, pushedAfter string) (maxPushedAt string, names []string, err error) {
-	c := httpClient{client: client, header: gitHubPreviewHeader}
+	c := httpClient{client: client, header: gitHubPreviewHeader()}
 
 	if pushedAfter == "" {
 		pushedAfter = time.Now().Add(-24 * time.Hour).UTC().Format("2006-01-02T15:04:05Z")
@@ -279,7 +305,7 @@ func GetGitHubUpdates(client *http.Client, pushedAfter string) (maxPushedAt stri
 }
 
 func getGitHubProject(client *http.Client, match map[string]string) (*Project, error) {
-	c := &httpClient{client: client, errFn: gitHubError}
+	c := &httpClient{client: client, errFn: gitHubError, header: githubHeader()}
 
 	var repo struct {
 		Description string
@@ -295,7 +321,7 @@ func getGitHubProject(client *http.Client, match map[string]string) (*Project, e
 }
 
 func getGistDir(client *http.Client, match map[string]string, savedEtag string) (*Directory, error) {
-	c := &httpClient{client: client, errFn: gitHubError}
+	c := &httpClient{client: client, errFn: gitHubError, header: githubHeader()}
 
 	var gist struct {
 		Files map[string]struct {
