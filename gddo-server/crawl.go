@@ -59,8 +59,8 @@ func crawlDoc(source string, importPath string, pdoc *doc.Package, hasSubdirs bo
 			for _, e := range pdocNew.Errors {
 				message = append(message, "err:", e)
 			}
-			pdoc = nil
 			err = gosrc.NotFoundError{Message: "no Go files or subdirs"}
+			return pdocNew, err
 		} else if err != gosrc.ErrNotModified {
 			pdoc = pdocNew
 		}
@@ -81,6 +81,21 @@ func crawlDoc(source string, importPath string, pdoc *doc.Package, hasSubdirs bo
 		if err := db.Put(pdoc, nextCrawl, false); err != nil {
 			log.Printf("ERROR db.Put(%q): %v", importPath, err)
 		}
+		if pdoc != nil {
+			go func() {
+				log.Println(importPath, "subdirs", pdoc.Subdirectories)
+				for _, v := range pdoc.Subdirectories {
+					if v != "vendor" {
+						scrawDeamon.Push(importPath + "/" + v)
+					}
+				}
+				log.Println(importPath, "imports", pdoc.Imports)
+				for _, v := range pdoc.Imports {
+					scrawDeamon.Push(v)
+				}
+			}()
+		}
+
 		return pdoc, nil
 	case err == gosrc.ErrNotModified:
 		message = append(message, "touch")
