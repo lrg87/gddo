@@ -418,6 +418,39 @@ func servePackage(resp http.ResponseWriter, req *http.Request) error {
 	return &httpError{status: http.StatusNotFound}
 }
 
+func serveAPIRefresh(resp http.ResponseWriter, req *http.Request) error {
+	fmt.Println("refresh")
+	importPath := req.URL.Query().Get("path")
+	go func() {
+		_, pkgs, _, err := db.Get(importPath)
+		if err != nil {
+			return
+		}
+		c := make(chan error, 1)
+		go func() {
+			_, err := crawlDoc("rfrsh", importPath, nil, len(pkgs) > 0, time.Time{})
+			c <- err
+		}()
+		select {
+		case err = <-c:
+		case <-time.After(viper.GetDuration(ConfigGetTimeout)):
+			err = errUpdateTimeout
+		}
+		if e, ok := err.(gosrc.NotFoundError); ok && e.Redirect != "" {
+			setFlashMessages(resp, []flashMessage{{ID: "redir", Args: []string{importPath}}})
+			importPath = e.Redirect
+			err = nil
+		} else if err != nil {
+			setFlashMessages(resp, []flashMessage{{ID: "refresh", Args: []string{errorText(err)}}})
+		}
+	}()
+
+	resp.WriteHeader(200)
+	resp.Write([]byte("OK"))
+
+	return nil
+}
+
 func serveRefresh(resp http.ResponseWriter, req *http.Request) error {
 	importPath := req.Form.Get("path")
 	_, pkgs, _, err := db.Get(importPath)
@@ -959,6 +992,8 @@ func main() {
 	mux.Handle("/-/refresh", handler(serveRefresh))
 	mux.Handle("/-/admin/reindex", http.HandlerFunc(runReindex))
 	mux.Handle("/-/admin/purgeindex", http.HandlerFunc(runPurgeIndex))
+	mux.Handle("/api/refresh", apiHandler(serveAPIRefresh))
+	mux.Handle("/a/index", http.RedirectHandler("/-/index", http.StatusMovedPermanently))
 	mux.Handle("/about", http.RedirectHandler("/-/about", http.StatusMovedPermanently))
 	mux.Handle("/favicon.ico", staticServer.FileHandler("favicon.ico"))
 	mux.Handle("/google3d2f3cd4cc2bb44b.html", staticServer.FileHandler("google3d2f3cd4cc2bb44b.html"))

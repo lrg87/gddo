@@ -50,12 +50,16 @@
     <tbody>{{range .}}
       <tr><td>
         {{if .Path|isValidImportPath}}
-        <a href="/{{.Path}}">{{.Path|importPath}}</a>
-          <ul class="list-inline">
-            <li class="additional-info">{{.ImportCount}} imports</li>
-            {{if .Fork}}<li class="additional-info">· fork</li>{{end}}
-            {{if .Stars}}<li class="additional-info">· {{.Stars}} stars</li>{{end}}
-          </ul>
+          {{if .Path|isOutsidePath}}
+            <a target="_blank" href="https://godoc.org/{{.Path}}">{{.Path|importPath}}</a>
+          {{else}}
+            <a href="/{{.Path}}">{{.Path|importPath}}</a>
+            <ul class="list-inline">
+              <li class="additional-info">{{.ImportCount}} imports</li>
+              {{if .Fork}}<li class="additional-info">· fork</li>{{end}}
+              {{if .Stars}}<li class="additional-info">· {{.Stars}} stars</li>{{end}}
+            </ul>
+          {{end}}
         {{else}}{{.Path|importPath}}</td>
         {{end}}
       <td class="synopsis">{{.Synopsis|importPath}}</td></tr>
@@ -64,7 +68,7 @@
 {{end}}
 
 {{define "PkgCmdHeader"}}{{with .pdoc}}
-  <title>{{.PageName}} - GoDoc</title>
+  <title>{{.PageName}} - Eleme GoDoc</title>
   {{if .Synopsis}}
     <meta name="twitter:title" content="{{if .IsCmd}}Command{{else}}Package{{end}} {{.PageName}}">
     <meta property="og:title" content="{{if .IsCmd}}Command{{else}}Package{{end}} {{.PageName}}">

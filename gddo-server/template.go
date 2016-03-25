@@ -537,6 +537,7 @@ func parseHTMLTemplates(sets [][]string) error {
 			"importPath":        importPathFn,
 			"isInterface":       isInterfaceFn,
 			"isValidImportPath": gosrc.IsValidPath,
+			"isOutsidePath":     gosrc.IsOutsidePath,
 			"map":               mapFn,
 			"noteTitle":         noteTitleFn,
 			"relativePath":      relativePathFn,
