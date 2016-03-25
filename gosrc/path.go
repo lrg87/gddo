@@ -54,5 +54,28 @@ func IsGoRepoPath(path string) bool {
 
 // IsValidPath returns true if importPath is structurally valid.
 func IsValidPath(importPath string) bool {
-	return pathFlags[importPath]&packagePath != 0 || IsValidRemotePath(importPath)
+	return pathFlags[importPath]&packagePath != 0 || IsRealRemotePath(importPath)
+}
+
+func IsRealRemotePath(importPath string) bool {
+	parts := strings.Split(importPath, "/")
+
+	if !validTLDs[path.Ext(parts[0])] {
+		return false
+	}
+
+	if !validHost.MatchString(parts[0]) {
+		return false
+	}
+
+	for _, part := range parts[1:] {
+		if !isValidPathElement(part) {
+			return false
+		}
+	}
+	return true
+}
+
+func IsOutsidePath(path string) bool {
+	return !strings.HasPrefix(path, "github.com/eleme") && !IsGoRepoPath(path)
 }

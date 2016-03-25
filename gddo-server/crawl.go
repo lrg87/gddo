@@ -54,13 +54,29 @@ func crawlDoc(source string, importPath string, pdoc *doc.Package, hasSubdirs bo
 	} else {
 		var pdocNew *doc.Package
 		pdocNew, err = doc.Get(httpClient, importPath, etag)
+		if pdocNew != nil {
+			go func() {
+				log.Println(importPath, "subdirs", pdocNew.Subdirectories)
+				for _, v := range pdocNew.Subdirectories {
+					if v != "vendor" {
+						scrawDeamon.Push(importPath + "/" + v)
+					}
+				}
+				log.Println(importPath, "imports", pdocNew.Imports)
+				for _, v := range pdocNew.Imports {
+					scrawDeamon.Push(v)
+				}
+			}()
+		}
+
 		message = append(message, "fetch:", int64(time.Since(start)/time.Millisecond))
+
 		if err == nil && pdocNew.Name == "" && !hasSubdirs {
 			for _, e := range pdocNew.Errors {
 				message = append(message, "err:", e)
 			}
 			err = gosrc.NotFoundError{Message: "no Go files or subdirs"}
-			return pdocNew, err
+			return nil, err
 		} else if err != gosrc.ErrNotModified {
 			pdoc = pdocNew
 		}
@@ -81,21 +97,6 @@ func crawlDoc(source string, importPath string, pdoc *doc.Package, hasSubdirs bo
 		if err := db.Put(pdoc, nextCrawl, false); err != nil {
 			log.Printf("ERROR db.Put(%q): %v", importPath, err)
 		}
-		if pdoc != nil {
-			go func() {
-				log.Println(importPath, "subdirs", pdoc.Subdirectories)
-				for _, v := range pdoc.Subdirectories {
-					if v != "vendor" {
-						scrawDeamon.Push(importPath + "/" + v)
-					}
-				}
-				log.Println(importPath, "imports", pdoc.Imports)
-				for _, v := range pdoc.Imports {
-					scrawDeamon.Push(v)
-				}
-			}()
-		}
-
 		return pdoc, nil
 	case err == gosrc.ErrNotModified:
 		message = append(message, "touch")
