@@ -411,6 +411,39 @@ func servePackage(resp http.ResponseWriter, req *http.Request) error {
 	return &httpError{status: http.StatusNotFound}
 }
 
+func serveAPIRefresh(resp http.ResponseWriter, req *http.Request) error {
+	fmt.Println("refresh")
+	importPath := req.URL.Query().Get("path")
+	go func() {
+		_, pkgs, _, err := db.Get(importPath)
+		if err != nil {
+			return
+		}
+		c := make(chan error, 1)
+		go func() {
+			_, err := crawlDoc("rfrsh", importPath, nil, len(pkgs) > 0, time.Time{})
+			c <- err
+		}()
+		select {
+		case err = <-c:
+		case <-time.After(*getTimeout):
+			err = errUpdateTimeout
+		}
+		if e, ok := err.(gosrc.NotFoundError); ok && e.Redirect != "" {
+			setFlashMessages(resp, []flashMessage{{ID: "redir", Args: []string{importPath}}})
+			importPath = e.Redirect
+			err = nil
+		} else if err != nil {
+			setFlashMessages(resp, []flashMessage{{ID: "refresh", Args: []string{errorText(err)}}})
+		}
+	}()
+
+	resp.WriteHeader(200)
+	resp.Write([]byte("OK"))
+
+	return nil
+}
+
 func serveRefresh(resp http.ResponseWriter, req *http.Request) error {
 	importPath := req.Form.Get("path")
 	_, pkgs, _, err := db.Get(importPath)
@@ -821,7 +854,7 @@ var (
 var (
 	robot           = flag.Float64("robot", 100, "Request counter threshold for robots.")
 	assetsDir       = flag.String("assets", filepath.Join(defaultBase("github.com/golang/gddo/gddo-server"), "assets"), "Base directory for templates and static files.")
-	getTimeout      = flag.Duration("get_timeout", 8*time.Second, "Time to wait for package update from the VCS.")
+	getTimeout      = flag.Duration("get_timeout", 300*time.Second, "Time to wait for package update from the VCS.")
 	firstGetTimeout = flag.Duration("first_get_timeout", 300*time.Second, "Time to wait for first fetch of package from the VCS.")
 	maxAge          = flag.Duration("max_age", 24*time.Hour, "Update package documents older than this age.")
 	httpAddr        = flag.String("http", ":8080", "Listen for HTTP connections on this address.")
@@ -924,6 +957,7 @@ func main() {
 	mux.Handle("/-/subrepo", handler(serveGoSubrepoIndex))
 	mux.Handle("/-/index", handler(serveIndex))
 	mux.Handle("/-/refresh", handler(serveRefresh))
+	mux.Handle("/api/refresh", apiHandler(serveAPIRefresh))
 	mux.Handle("/a/index", http.RedirectHandler("/-/index", http.StatusMovedPermanently))
 	mux.Handle("/about", http.RedirectHandler("/-/about", http.StatusMovedPermanently))
 	mux.Handle("/favicon.ico", staticServer.FileHandler("favicon.ico"))
