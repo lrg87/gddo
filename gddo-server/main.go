@@ -30,7 +30,7 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/cloud/compute/metadata"
+	"cloud.google.com/go/compute/metadata"
 
 	"github.com/golang/gddo/database"
 	"github.com/golang/gddo/doc"
